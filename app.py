@@ -43,7 +43,7 @@ if st.session_state.usuario is None:
 usuario_id = st.session_state.usuario["id"]
 usuario_nome = st.session_state.usuario["nome"]
 
-col_topo1, col_topo2 = st.columns([3, 1])
+col_topo1, col_topo2 = st.columns([4, 1])
 col_topo1.title(f"Olá, {usuario_nome} 👋")
 if col_topo2.button("Sair"):
     st.session_state.usuario = None
@@ -56,7 +56,10 @@ aba_lancar, aba_resumo, aba_historico = st.tabs(["➕ Lançar", "📊 Resumo", "
 with aba_lancar:
     st.subheader("Novo Registro")
     with st.form("form_transacao", clear_on_submit=True):
-        tipo = st.radio("Tipo", ["Despesa", "Receita"], horizontal=True)
+        col_r1, col_r2 = st.columns(2)
+        tipo = col_r1.radio("Tipo", ["Despesa", "Receita"], horizontal=True)
+        natureza = col_r2.radio("Natureza", ["Variável", "Fixo"], horizontal=True)
+        
         valor = st.number_input("Valor (R$)", min_value=0.01, format="%.2f", step=10.0)
         
         categorias_despesa = ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros"]
@@ -72,19 +75,19 @@ with aba_lancar:
             conn = get_connection()
             cur = conn.cursor()
             cur.execute(
-                """INSERT INTO transacoes (data, tipo, categoria, descricao, valor, usuario_id) 
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (data_lancamento, tipo, categoria, descricao, valor, usuario_id)
+                """INSERT INTO transacoes (data, tipo, natureza, categoria, descricao, valor, usuario_id) 
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (data_lancamento, tipo, natureza, categoria, descricao, valor, usuario_id)
             )
             conn.commit()
             cur.close()
             conn.close()
-            st.success(f"{tipo} de R$ {valor:.2f} salva com sucesso!")
+            st.success(f"{tipo} ({natureza}) de R$ {valor:.2f} salva com sucesso!")
 
 # Carrega dados do banco para as abas de Resumo e Histórico
 conn = get_connection()
 query = """
-    SELECT t.id, t.data, t.tipo, t.categoria, t.descricao, t.valor, u.nome as responsavel
+    SELECT t.id, t.data, t.tipo, COALESCE(t.natureza, 'Variável') as natureza, t.categoria, t.descricao, t.valor, u.nome as responsavel
     FROM transacoes t
     JOIN usuarios u ON t.usuario_id = u.id
     ORDER BY t.data DESC, t.id DESC
@@ -123,6 +126,11 @@ with aba_resumo:
             fig = px.pie(df_despesas, values="valor", names="categoria", hole=0.4)
             fig.update_layout(margin=dict(t=20, b=20, l=20, r=20))
             st.plotly_chart(fig, use_container_width=True)
+            
+            st.subheader("Despesas por Natureza")
+            fig_nat = px.pie(df_despesas, values="valor", names="natureza", hole=0.4, color_discrete_sequence=["#FF6B6B", "#4ECDC4"])
+            fig_nat.update_layout(margin=dict(t=20, b=20, l=20, r=20))
+            st.plotly_chart(fig_nat, use_container_width=True)
         else:
             st.write("Nenhuma despesa registrada neste mês.")
 
@@ -138,7 +146,7 @@ with aba_historico:
             desc = f" - {row['descricao']}" if row["descricao"] else ""
             
             col_info, col_del = st.columns([5, 1])
-            col_info.markdown(f"{icone} **{row['categoria']}**{desc}  \nR$ {row['valor']:.2f} • *{data_fmt} ({row['responsavel']})*")
+            col_info.markdown(f"{icone} **{row['categoria']}** `[{row['natureza']}]`{desc}  \nR$ {row['valor']:.2f} • *{data_fmt} ({row['responsavel']})*")
             
             if col_del.button("🗑️", key=f"del_{row['id']}", help="Excluir registro"):
                 conn = get_connection()
