@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import date
 
-# Configuração da página para ficar com cara de app de celular
+# Configuração da página
 st.set_page_config(page_title="Finanças da Família", page_icon="💰", layout="centered")
 
 # Conexão com o banco de dados Supabase
@@ -21,7 +21,7 @@ def autenticar_usuario(pin_digitado):
     conn.close()
     return usuario
 
-# Controle de sessão (mantém logado enquanto usa)
+# Controle de sessão
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
 
@@ -55,17 +55,20 @@ aba_lancar, aba_resumo, aba_historico = st.tabs(["➕ Lançar", "📊 Resumo", "
 # ABA 1: NOVO LANÇAMENTO
 with aba_lancar:
     st.subheader("Novo Registro")
+    
+    # Tipo e Natureza fora do form para atualizar as categorias instantaneamente
+    col_r1, col_r2 = st.columns(2)
+    tipo = col_r1.radio("Tipo", ["Despesa", "Receita"], horizontal=True)
+    natureza = col_r2.radio("Natureza", ["Variável", "Fixo"], horizontal=True)
+    
+    categorias_despesa = [
+        "Alimentação", "Cartão de Crédito", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros", "Educação", "Assinaturas"
+    ]
+    categorias_receita = ["Salário", "Mariana Rui", "Encordoamentos", "Arbitragem", "Tenis/Padel", "Investimentos", "Outros"]
+    categorias = categorias_despesa if tipo == "Despesa" else categorias_receita
+
     with st.form("form_transacao", clear_on_submit=True):
-        col_r1, col_r2 = st.columns(2)
-        tipo = col_r1.radio("Tipo", ["Despesa", "Receita"], horizontal=True)
-        natureza = col_r2.radio("Natureza", ["Variável", "Fixo"], horizontal=True)
-        
         valor = st.number_input("Valor (R$)", min_value=0.01, format="%.2f", step=10.0)
-        
-        categorias_despesa = ["Alimentação", "Cartão de Crédito", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros"]
-        categorias_receita = ["Salário", "Renda Extra", "Investimentos", "Outros"]
-        categorias = categorias_despesa if tipo == "Despesa" else categorias_receita
-        
         categoria = st.selectbox("Categoria", categorias)
         descricao = st.text_input("Descrição (opcional)", placeholder="Ex: Supermercado, Conta de luz...")
         data_lancamento = st.date_input("Data", value=date.today())
@@ -87,7 +90,8 @@ with aba_lancar:
 # Carrega dados do banco para as abas de Resumo e Histórico
 conn = get_connection()
 query = """
-    SELECT t.id, t.data, t.tipo, COALESCE(t.natureza, 'Variável') as natureza, t.categoria, t.descricao, t.valor, u.nome as responsavel
+    SELECT t.id, t.data, t.tipo, COALESCE(t.natureza, 'Variável') as natureza, 
+           t.categoria, t.descricao, t.valor, u.nome as responsavel
     FROM transacoes t
     JOIN usuarios u ON t.usuario_id = u.id
     ORDER BY t.data DESC, t.id DESC
@@ -103,7 +107,6 @@ with aba_resumo:
         df["data"] = pd.to_datetime(df["data"])
         hoje = date.today()
         
-        # Filtro de Mês e Ano
         col_m, col_a = st.columns(2)
         mes_sel = col_m.selectbox("Mês", range(1, 13), index=hoje.month - 1)
         ano_sel = col_a.number_input("Ano", value=hoje.year, step=1)
@@ -128,7 +131,10 @@ with aba_resumo:
             st.plotly_chart(fig, use_container_width=True)
             
             st.subheader("Despesas por Natureza")
-            fig_nat = px.pie(df_despesas, values="valor", names="natureza", hole=0.4, color_discrete_sequence=["#FF6B6B", "#4ECDC4"])
+            fig_nat = px.pie(
+                df_despesas, values="valor", names="natureza", hole=0.4, 
+                color_discrete_sequence=["#FF6B6B", "#4ECDC4"]
+            )
             fig_nat.update_layout(margin=dict(t=20, b=20, l=20, r=20))
             st.plotly_chart(fig_nat, use_container_width=True)
         else:
@@ -146,7 +152,10 @@ with aba_historico:
             desc = f" - {row['descricao']}" if row["descricao"] else ""
             
             col_info, col_del = st.columns([5, 1])
-            col_info.markdown(f"{icone} **{row['categoria']}** `[{row['natureza']}]`{desc}  \nR$ {row['valor']:.2f} • *{data_fmt} ({row['responsavel']})*")
+            col_info.markdown(
+                f"{icone} **{row['categoria']}** `[{row['natureza']}]`{desc}  \n"
+                f"R$ {row['valor']:.2f} • *{data_fmt} ({row['responsavel']})*"
+            )
             
             if col_del.button("🗑️", key=f"del_{row['id']}", help="Excluir registro"):
                 conn = get_connection()
