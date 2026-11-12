@@ -67,9 +67,17 @@ with aba_lancar:
     natureza = col_r2.radio("Natureza", ["Variável", "Fixo"], horizontal=True)
 
     categorias_despesa = [
-        "Alimentação", "Cartão de Crédito", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros", "Educação", "Assinaturas"
+        "Alimentação",
+        "Cartão de Crédito",
+        "Moradia",
+        "Transporte",
+        "Saúde",
+        "Lazer",
+        "Contas",
+        "Compras",
+        "Outros",
     ]
-    categorias_receita = ["Salário", "Mariana Rui", "Encordoamentos", "Arbitragem", "Tenis/Padel", "Investimentos", "Outros"]
+    categorias_receita = ["Salário", "Renda Extra", "Investimentos", "Outros"]
     categorias = categorias_despesa if tipo == "Despesa" else categorias_receita
 
     with st.form("form_transacao", clear_on_submit=True):
@@ -115,8 +123,8 @@ with aba_resumo:
         df["data"] = pd.to_datetime(df["data"])
         hoje = date.today()
         col_m, col_a = st.columns(2)
-        mes_sel = col_m.selectbox("Mês", range(1, 13), index=hoje.month - 1)
-        ano_sel = col_a.number_input("Ano", value=hoje.year, step=1)
+        mes_sel = col_m.selectbox("Mês", range(1, 13), index=hoje.month - 1, key="mes_resumo")
+        ano_sel = col_a.number_input("Ano", value=hoje.year, step=1, key="ano_resumo")
 
         df_mes = df[(df["data"].dt.month == mes_sel) & (df["data"].dt.year == ano_sel)]
         receitas = df_mes[df_mes["tipo"] == "Receita"]["valor"].sum()
@@ -176,47 +184,61 @@ with aba_historico:
                 st.rerun()
             st.divider()
 
-# ABA 4: TODOS OS REGISTROS COM FILTRO POR CATEGORIA
+# ABA 4: TODOS OS REGISTROS COM FILTRO POR DATA E CATEGORIA
 with aba_registros:
     st.subheader("📑 Todos os Registros com Filtro")
     if df.empty:
         st.info("Nenhum lançamento registrado ainda.")
     else:
-        # Extrai categorias únicas presentes nos lançamentos
-        categorias_disponiveis = sorted(df["categoria"].dropna().unique().tolist())
+        df["data"] = pd.to_datetime(df["data"])
+        hoje = date.today()
 
-        # Filtro de seleção múltipla (por padrão exibe todas as categorias)
+        # Filtro de Mês e Ano
+        col_m_reg, col_a_reg = st.columns(2)
+        mes_reg = col_m_reg.selectbox("Mês", range(1, 13), index=hoje.month - 1, key="mes_reg")
+        ano_reg = col_a_reg.number_input("Ano", value=hoje.year, step=1, key="ano_reg")
+
+        # Filtra primeiramente pelo mês e ano selecionados
+        df_periodo = df[(df["data"].dt.month == mes_reg) & (df["data"].dt.year == ano_reg)]
+
+        # Extrai categorias únicas presentes no período selecionado
+        categorias_disponiveis = sorted(df_periodo["categoria"].dropna().unique().tolist())
+
+        # Filtro de seleção múltipla por categoria
         categorias_selecionadas = st.multiselect(
             "Filtrar por Categoria:",
             options=categorias_disponiveis,
             default=categorias_disponiveis,
         )
 
-        # Filtra o DataFrame
-        df_filtrado = df[df["categoria"].isin(categorias_selecionadas)]
-        st.caption(f"Exibindo **{len(df_filtrado)}** de **{len(df)}** registros.")
+        # Filtra o DataFrame pelas categorias escolhidas
+        df_filtrado = df_periodo[df_periodo["categoria"].isin(categorias_selecionadas)]
+        st.caption(f"Exibindo **{len(df_filtrado)}** de **{len(df_periodo)}** registros no período.")
 
-        # Calcula a soma total antes de transformar os números em texto formatado
-        total_valor = df_filtrado["valor"].sum()
+        if df_filtrado.empty:
+            st.info("Nenhum lançamento encontrado para os filtros selecionados.")
+        else:
+            # Calcula a soma total antes de formatar como texto
+            total_valor = df_filtrado["valor"].sum()
 
-        # Prepara a tabela apenas com as colunas desejadas
-        df_display = df_filtrado[["data", "tipo", "categoria", "descricao", "valor"]].copy()
-        df_display["data"] = pd.to_datetime(df_display["data"]).dt.strftime("%d/%m/%Y")
-        df_display["valor"] = df_display["valor"].apply(formatar_moeda)
+            # Prepara a tabela apenas com as colunas desejadas
+            df_display = df_filtrado[["data", "tipo", "categoria", "descricao", "valor"]].copy()
+            df_display["data"] = df_display["data"].dt.strftime("%d/%m/%Y")
+            df_display["valor"] = df_display["valor"].apply(formatar_moeda)
 
-        # Cria e adiciona a última linha com o TOTAL
-        linha_total = pd.DataFrame([{
-            "data": "TOTAL",
-            "tipo": "",
-            "categoria": "",
-            "descricao": "",
-            "valor": formatar_moeda(total_valor),
-        }])
-        df_display = pd.concat([df_display, linha_total], ignore_index=True)
+            # Cria e adiciona a última linha com o TOTAL
+            linha_total = pd.DataFrame([{
+                "data": "TOTAL",
+                "tipo": "",
+                "categoria": "",
+                "descricao": "",
+                "valor": formatar_moeda(total_valor),
+            }])
+            df_display = pd.concat([df_display, linha_total], ignore_index=True)
 
-        # Exibe a tabela final
-        st.dataframe(
-            df_display,
-            use_container_width=True,
-            hide_index=True,
-        )
+            # Exibe a tabela final
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+            )
