@@ -21,6 +21,10 @@ def autenticar_usuario(pin_digitado):
     conn.close()
     return usuario
 
+# Função para formatar valores no padrão moeda brasileiro (R$)
+def formatar_moeda(valor):
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 # Controle de sessão
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
@@ -63,7 +67,7 @@ with aba_lancar:
     natureza = col_r2.radio("Natureza", ["Variável", "Fixo"], horizontal=True)
 
     categorias_despesa = [
-      "Alimentação", "Cartão de Crédito", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros", "Educação", "Assinaturas"
+        "Alimentação", "Cartão de Crédito", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros", "Educação", "Assinaturas"
     ]
     categorias_receita = ["Salário", "Mariana Rui", "Encordoamentos", "Arbitragem", "Tenis/Padel", "Investimentos", "Outros"]
     categorias = categorias_despesa if tipo == "Despesa" else categorias_receita
@@ -192,15 +196,27 @@ with aba_registros:
         df_filtrado = df[df["categoria"].isin(categorias_selecionadas)]
         st.caption(f"Exibindo **{len(df_filtrado)}** de **{len(df)}** registros.")
 
-        # Formatação visual da data para a tabela
-        df_display = df_filtrado.copy()
-        df_display["data"] = pd.to_datetime(df_display["data"]).dt.strftime("%d/%m/%Y")
+        # Calcula a soma total antes de transformar os números em texto formatado
+        total_valor = df_filtrado["valor"].sum()
 
-        # Tabela interativa com ordenação e busca nativas do Streamlit
+        # Prepara a tabela apenas com as colunas desejadas
+        df_display = df_filtrado[["data", "tipo", "categoria", "descricao", "valor"]].copy()
+        df_display["data"] = pd.to_datetime(df_display["data"]).dt.strftime("%d/%m/%Y")
+        df_display["valor"] = df_display["valor"].apply(formatar_moeda)
+
+        # Cria e adiciona a última linha com o TOTAL
+        linha_total = pd.DataFrame([{
+            "data": "TOTAL",
+            "tipo": "",
+            "categoria": "",
+            "descricao": "",
+            "valor": formatar_moeda(total_valor),
+        }])
+        df_display = pd.concat([df_display, linha_total], ignore_index=True)
+
+        # Exibe a tabela final
         st.dataframe(
-            df_display[
-                ["data", "tipo", "natureza", "categoria", "descricao", "valor", "responsavel"]
-            ],
+            df_display,
             use_container_width=True,
             hide_index=True,
         )
