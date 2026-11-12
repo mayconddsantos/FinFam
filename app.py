@@ -62,7 +62,7 @@ with aba_lancar:
         
         valor = st.number_input("Valor (R$)", min_value=0.01, format="%.2f", step=10.0)
         
-        categorias_despesa = ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros"]
+        categorias_despesa = ["Alimentação", "Cartão de Crédito", "Moradia", "Transporte", "Saúde", "Lazer", "Contas", "Compras", "Outros"]
         categorias_receita = ["Salário", "Renda Extra", "Investimentos", "Outros"]
         categorias = categorias_despesa if tipo == "Despesa" else categorias_receita
         
